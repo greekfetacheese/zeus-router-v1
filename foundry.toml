@@ -1,0 +1,23 @@
+[profile.default]
+solc_version = "0.8.30"
+evm_version = "prague"
+
+optimizer = true
+optimizer_runs = 1_000
+via_ir = false
+
+gas_reports = ['*']
+
+src = "src"
+out = "out"
+test = 'test'
+libs = ["lib"]
+
+[lint]
+exclude_lints = ["mixed-case-variable", "mixed-case-function", "pascal-case-struct"]
+
+
+# See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
+
+[rpc_endpoints]
+mainnet = "https://reth-ethereum.ithaca.xyz/rpc"
