@@ -21,3 +21,4 @@ exclude_lints = ["mixed-case-variable", "mixed-case-function", "pascal-case-stru
 
 [rpc_endpoints]
 mainnet = "https://reth-ethereum.ithaca.xyz/rpc"
+base = "https://base-rpc.publicnode.com"
