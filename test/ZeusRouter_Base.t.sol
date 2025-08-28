@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity >=0.7.0 <0.9.0;
 
-import {Test, console} from "forge-std/Test.sol";
+import {Test} from "forge-std/Test.sol";
 import {ZeusRouter} from "../src/ZeusRouter.sol";
 import {Commands} from "../src/lib/Commands.sol";
-import {IWETH} from "../src/interfaces/IWETH.sol";
 import {Inputs} from "../src/lib/Inputs.sol";
 import {IPermit2} from "../src/interfaces/IPermit2.sol";
 import {SafeTransferLib} from "../src/lib/SafeTransferLib.sol";
