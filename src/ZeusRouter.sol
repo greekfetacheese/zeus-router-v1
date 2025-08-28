@@ -183,7 +183,7 @@ contract ZeusRouter {
         bool zeroForOne = tokenIn < tokenOut;
 
         address pool = IUniswapV3Factory(UNISWAP_V3_FACTORY).getPool(tokenIn, tokenOut, fee);
-        require(msg.sender == pool, "UniswapV3SwapCallback: Msg.sender is not a pool");
+        require(msg.sender == pool && pool != address(0), "UniswapV3SwapCallback: Msg.sender is not a pool");
 
         uint256 amountToPay = zeroForOne ? uint256(amount0Delta) : uint256(amount1Delta);
         require(amountToPay == amountIn, "UniswapV3SwapCallback: amountToPay != amountIn");
@@ -205,7 +205,7 @@ contract ZeusRouter {
 
         // Verify caller is the correct pool
         address pool = IUniswapV3Factory(PANCAKE_SWAP_V3_FACTORY).getPool(tokenIn, tokenOut, fee);
-        require(msg.sender == pool, "PancakeV3SwapCallback: Msg.sender is not a pool");
+        require(msg.sender == pool && pool != address(0), "PancakeV3SwapCallback: Msg.sender is not a pool");
 
         uint256 amountToPay = zeroForOne ? uint256(amount0Delta) : uint256(amount1Delta);
         require(amountToPay == amountIn, "PancakeV3SwapCallback: amountToPay != amountIn");
