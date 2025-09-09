@@ -3,8 +3,6 @@ pragma solidity >=0.7.0 <0.9.0;
 
 import {Inputs} from "./Inputs.sol";
 import {IUniswapV3Pool, IUniswapV2Pair, IV4PoolManager} from "../interfaces/Uniswap.sol";
-import {IPermit2} from "../interfaces/IPermit2.sol";
-import {SafeTransferLib} from "./SafeTransferLib.sol";
 
 library Swap {
 
@@ -16,12 +14,7 @@ library Swap {
         Inputs.V4SwapParams params;
     }
 
-    function OnUniswapV2(Inputs.V2V3SwapParams memory params, address payer, address permit2Address) internal {
-        if (params.permit2) {
-            IPermit2(permit2Address).transferFrom(payer, params.pool, uint160(params.amountIn), params.tokenIn);
-        } else {
-            SafeTransferLib.safeTransfer(params.tokenIn, params.pool, params.amountIn);
-        }
+    function OnUniswapV2(Inputs.V2V3SwapParams memory params) internal {
 
         uint reserveIn;
         uint reserveOut;

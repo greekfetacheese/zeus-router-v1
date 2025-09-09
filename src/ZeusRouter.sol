@@ -9,25 +9,22 @@ import {Commands} from "./lib/Commands.sol";
 import {Inputs} from "./lib/Inputs.sol";
 import {SafeTransferLib} from "./lib/SafeTransferLib.sol";
 
-
-// ZZZZZZZZZZZZZZZZZZZ                                                       
-// Z:::::::::::::::::Z                                                       
-// Z:::::::::::::::::Z                                                       
-// Z:::ZZZZZZZZ:::::Z                                                        
-// ZZZZZ     Z:::::Z      eeeeeeeeeeee    uuuuuu    uuuuuu      ssssssssss   
-//         Z:::::Z      ee::::::::::::ee  u::::u    u::::u    ss::::::::::s  
-//        Z:::::Z      e::::::eeeee:::::eeu::::u    u::::u  ss:::::::::::::s 
+// ZZZZZZZZZZZZZZZZZZZ
+// Z:::::::::::::::::Z
+// Z:::::::::::::::::Z
+// Z:::ZZZZZZZZ:::::Z
+// ZZZZZ     Z:::::Z      eeeeeeeeeeee    uuuuuu    uuuuuu      ssssssssss
+//         Z:::::Z      ee::::::::::::ee  u::::u    u::::u    ss::::::::::s
+//        Z:::::Z      e::::::eeeee:::::eeu::::u    u::::u  ss:::::::::::::s
 //       Z:::::Z      e::::::e     e:::::eu::::u    u::::u  s::::::ssss:::::s
-//      Z:::::Z       e:::::::eeeee::::::eu::::u    u::::u   s:::::s  ssssss 
-//     Z:::::Z        e:::::::::::::::::e u::::u    u::::u     s::::::s      
-//    Z:::::Z         e::::::eeeeeeeeeee  u::::u    u::::u        s::::::s   
-// ZZZ:::::Z     ZZZZZe:::::::e           u:::::uuuu:::::u  ssssss   s:::::s 
+//      Z:::::Z       e:::::::eeeee::::::eu::::u    u::::u   s:::::s  ssssss
+//     Z:::::Z        e:::::::::::::::::e u::::u    u::::u     s::::::s
+//    Z:::::Z         e::::::eeeeeeeeeee  u::::u    u::::u        s::::::s
+// ZZZ:::::Z     ZZZZZe:::::::e           u:::::uuuu:::::u  ssssss   s:::::s
 // Z::::::ZZZZZZZZ:::Ze::::::::e          u:::::::::::::::uus:::::ssss::::::s
-// Z:::::::::::::::::Z e::::::::eeeeeeee   u:::::::::::::::us::::::::::::::s 
-// Z:::::::::::::::::Z  ee:::::::::::::e    uu::::::::uu:::u s:::::::::::ss  
-// ZZZZZZZZZZZZZZZZZZZ    eeeeeeeeeeeeee      uuuuuuuu  uuuu  sssssssssss    
-                                                                         
-
+// Z:::::::::::::::::Z e::::::::eeeeeeee   u:::::::::::::::us::::::::::::::s
+// Z:::::::::::::::::Z  ee:::::::::::::e    uu::::::::uu:::u s:::::::::::ss
+// ZZZZZZZZZZZZZZZZZZZ    eeeeeeeeeeeeee      uuuuuuuu  uuuu  sssssssssss
 
 library BalanceDeltaLibrary {
     function amount0(int256 balanceDelta) internal pure returns (int128 _amount0) {
@@ -116,7 +113,13 @@ contract ZeusRouter {
         uint256 balanceBefore = SafeTransferLib.balanceOf(params.tokenOut, params.recipient);
 
         if (params.poolVariant == 0) {
-            Swap.OnUniswapV2(params, msg.sender, PERMIT2);
+            if (params.permit2) {
+                IPermit2(PERMIT2).transferFrom(msg.sender, params.pool, uint160(params.amountIn), params.tokenIn);
+            } else {
+                SafeTransferLib.safeTransfer(params.tokenIn, params.pool, params.amountIn);
+            }
+
+            Swap.OnUniswapV2(params);
         } else if (params.poolVariant == 1) {
             Swap.OnUniswapV3(params, msg.sender);
         } else {
