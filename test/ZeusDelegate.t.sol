@@ -44,6 +44,9 @@ contract ZeusDelegateTest is Test {
     address payable public Alice;
     uint256 public AliceKey;
 
+    address Bob;
+    uint256 BobKey;
+
     uint256 public ETH_AMOUNT = 10e18;
     uint256 public WETH_AMOUNT = 10e18;
     uint256 public USDC_AMOUNT = 10000e6;
@@ -63,6 +66,11 @@ contract ZeusDelegateTest is Test {
         (address aliceAddr, uint256 aliceKey) = makeAddrAndKey("Alice");
         Alice = payable(aliceAddr);
         AliceKey = aliceKey;
+
+        (address bobAddr, uint256 bobKey) = makeAddrAndKey("Bob");
+        Bob = bobAddr;
+        BobKey = bobKey;
+
         deal(Alice, 10 ether);
         deal(WETH, Alice, WETH_AMOUNT);
         deal(USDC, Alice, USDC_AMOUNT);
@@ -98,8 +106,7 @@ contract ZeusDelegateTest is Test {
             tickSpacing: 60,
             zeroForOne: false,
             hooks: address(0),
-            hookData: bytes(""),
-            recipient: Alice
+            hookData: bytes("")
         });
 
         vm.expectRevert(bytes("UniswapV4SwapCallback: Msg.sender is not PoolManager"));
@@ -289,8 +296,7 @@ contract ZeusDelegateTest is Test {
             tickSpacing: 60,
             zeroForOne: false,
             hooks: address(0),
-            hookData: bytes(""),
-            recipient: Alice
+            hookData: bytes("")
         });
 
         inputs[0] = abi.encode(swapParams);

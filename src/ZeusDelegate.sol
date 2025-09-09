@@ -102,8 +102,18 @@ contract ZeusSwapDelegator {
     /// @param zeroForOne Whether the swap is from currencyIn to currencyOut
     /// @param hooks The hooks to use for the swap
     /// @param hookData The data to pass to the hooks
-    /// @param recipient The recipient of the currencyOut
     struct V4SwapArgs {
+        address currencyIn;
+        address currencyOut;
+        uint256 amountIn;
+        uint24 fee;
+        int24 tickSpacing;
+        bool zeroForOne;
+        address hooks;
+        bytes hookData;
+    }
+
+    struct V4CallBackData {
         address currencyIn;
         address currencyOut;
         uint256 amountIn;
@@ -128,6 +138,8 @@ contract ZeusSwapDelegator {
     }
 
     function zSwap(ZParams calldata params) public payable {
+        require(msg.sender == address(this), "Only callable by self");
+
         uint256 balanceBefore;
         if (params.currencyOut == ETH) {
             balanceBefore = msg.sender.balance;
@@ -197,7 +209,19 @@ contract ZeusSwapDelegator {
     }
 
     function _swapV4(bytes memory input) internal {
-        IV4PoolManager(V4_POOL_MANAGER).unlock(input);
+        V4SwapArgs memory data = abi.decode(input, (V4SwapArgs));
+        V4CallBackData memory callbackData = V4CallBackData({
+            currencyIn: data.currencyIn,
+            currencyOut: data.currencyOut,
+            amountIn: data.amountIn,
+            fee: data.fee,
+            tickSpacing: data.tickSpacing,
+            zeroForOne: data.zeroForOne,
+            hooks: data.hooks,
+            hookData: data.hookData,
+            recipient: msg.sender
+        });
+        IV4PoolManager(V4_POOL_MANAGER).unlock(abi.encode(callbackData));
     }
 
     /// @notice Wraps ETH into WETH
@@ -265,7 +289,7 @@ contract ZeusSwapDelegator {
     function unlockCallback(bytes calldata callbackData) public payable returns (bytes memory result) {
         require(msg.sender == V4_POOL_MANAGER, "UniswapV4SwapCallback: Msg.sender is not PoolManager");
 
-        V4SwapArgs memory data = abi.decode(callbackData, (V4SwapArgs));
+        V4CallBackData memory data = abi.decode(callbackData, (V4CallBackData));
 
         (uint256 amountOut, uint256 amountToPay) = _swap(data);
         IV4PoolManager poolManager = IV4PoolManager(V4_POOL_MANAGER);
@@ -283,7 +307,7 @@ contract ZeusSwapDelegator {
         return "";
     }
 
-    function _swap(V4SwapArgs memory data) internal returns (uint256 amountOut, uint256 amountToPay) {
+    function _swap(V4CallBackData memory data) internal returns (uint256 amountOut, uint256 amountToPay) {
         (address currency0, address currency1) = sortCurrencies(data.currencyIn, data.currencyOut);
 
         V4PoolKey memory poolKey = V4PoolKey(currency0, currency1, data.fee, data.tickSpacing, data.hooks);

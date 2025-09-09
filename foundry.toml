@@ -3,8 +3,8 @@ solc_version = "0.8.30"
 evm_version = "prague"
 
 optimizer = true
-optimizer_runs = 1_000
-via_ir = false
+optimizer_runs = 500
+via_ir = true
 
 gas_reports = ['*']
 
