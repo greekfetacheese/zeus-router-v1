@@ -106,7 +106,8 @@ contract ZeusDelegateTest is Test {
             tickSpacing: 60,
             zeroForOne: false,
             hooks: address(0),
-            hookData: bytes("")
+            hookData: bytes(""),
+            recipient: Alice
         });
 
         vm.expectRevert(bytes("UniswapV4SwapCallback: Msg.sender is not PoolManager"));
@@ -296,7 +297,8 @@ contract ZeusDelegateTest is Test {
             tickSpacing: 60,
             zeroForOne: false,
             hooks: address(0),
-            hookData: bytes("")
+            hookData: bytes(""),
+            recipient: Alice
         });
 
         inputs[0] = abi.encode(swapParams);

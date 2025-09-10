@@ -102,6 +102,7 @@ contract ZeusSwapDelegator {
     /// @param zeroForOne Whether the swap is from currencyIn to currencyOut
     /// @param hooks The hooks to use for the swap
     /// @param hookData The data to pass to the hooks
+    /// @param recipient The address to receive the output currency, must be the same as msg.sender
     struct V4SwapArgs {
         address currencyIn;
         address currencyOut;
@@ -111,6 +112,7 @@ contract ZeusSwapDelegator {
         bool zeroForOne;
         address hooks;
         bytes hookData;
+        address recipient;
     }
 
     struct V4CallBackData {
@@ -140,14 +142,37 @@ contract ZeusSwapDelegator {
     function zSwap(ZParams calldata params) public payable {
         require(msg.sender == address(this), "Only callable by self");
 
+        // Keep track of the eth/weth balances before the swap
+
         uint256 balanceBefore;
+        uint256 ethBalanceBefore = 0;
+        uint256 wethBalanceBefore = 0;
+
         if (params.currencyOut == ETH) {
             balanceBefore = msg.sender.balance;
         } else {
             balanceBefore = SafeTransferLib.balanceOf(params.currencyOut, msg.sender);
         }
 
-        execute(params.commands, params.inputs);
+        (bool trackEth, bool trackWeth) = shouldTrackEthWethBalances(params.commands);
+
+        if (trackEth) {
+            if (params.currencyOut == ETH) {
+                ethBalanceBefore = balanceBefore;
+            } else {
+                ethBalanceBefore = msg.sender.balance;
+            }
+        }
+
+        if (trackWeth) {
+            if (params.currencyOut == WETH) {
+                wethBalanceBefore = balanceBefore;
+            } else {
+                wethBalanceBefore = SafeTransferLib.balanceOf(WETH, msg.sender);
+            }
+        }
+
+        execute(params, ethBalanceBefore, wethBalanceBefore);
 
         uint256 balanceAfter;
         if (params.currencyOut == ETH) {
@@ -163,13 +188,10 @@ contract ZeusSwapDelegator {
     }
 
     /// @notice Executes a series of commands with their corresponding inputs.
-    function execute(bytes calldata commands, bytes[] calldata inputs) internal {
-        uint256 ethBalanceBefore = msg.sender.balance;
-        uint256 wethBalanceBefore = SafeTransferLib.balanceOf(WETH, msg.sender);
-
-        for (uint256 i = 0; i < commands.length; i++) {
-            bytes1 command = commands[i];
-            bytes memory input = inputs[i];
+    function execute(ZParams calldata params, uint256 ethBalanceBefore, uint256 wethBalanceBefore) internal {
+        for (uint256 i = 0; i < params.commands.length; i++) {
+            bytes1 command = params.commands[i];
+            bytes memory input = params.inputs[i];
 
             bool isValid = command >= V2_SWAP && command <= WRAP_ETH_NO_CHECK;
             require(isValid, "Invalid command");
@@ -196,6 +218,25 @@ contract ZeusSwapDelegator {
         }
     }
 
+    function shouldTrackEthWethBalances(bytes calldata commands) internal pure returns (bool, bool) {
+        bool trackEth = false;
+        bool trackWeth = false;
+
+        for (uint256 i = 0; i < commands.length; i++) {
+            bytes1 command = commands[i];
+
+            if (command == WRAP_ETH) {
+                trackEth = true;
+            }
+
+            if (command == UNWRAP_WETH) {
+                trackWeth = true;
+            }
+        }
+
+        return (trackEth, trackWeth);
+    }
+
     function _swapV2V3(bytes memory input) internal {
         V2V3SwapParams memory params = abi.decode(input, (V2V3SwapParams));
 
@@ -209,19 +250,7 @@ contract ZeusSwapDelegator {
     }
 
     function _swapV4(bytes memory input) internal {
-        V4SwapArgs memory data = abi.decode(input, (V4SwapArgs));
-        V4CallBackData memory callbackData = V4CallBackData({
-            currencyIn: data.currencyIn,
-            currencyOut: data.currencyOut,
-            amountIn: data.amountIn,
-            fee: data.fee,
-            tickSpacing: data.tickSpacing,
-            zeroForOne: data.zeroForOne,
-            hooks: data.hooks,
-            hookData: data.hookData,
-            recipient: msg.sender
-        });
-        IV4PoolManager(V4_POOL_MANAGER).unlock(abi.encode(callbackData));
+        IV4PoolManager(V4_POOL_MANAGER).unlock(input);
     }
 
     /// @notice Wraps ETH into WETH
@@ -289,7 +318,7 @@ contract ZeusSwapDelegator {
     function unlockCallback(bytes calldata callbackData) public payable returns (bytes memory result) {
         require(msg.sender == V4_POOL_MANAGER, "UniswapV4SwapCallback: Msg.sender is not PoolManager");
 
-        V4CallBackData memory data = abi.decode(callbackData, (V4CallBackData));
+        V4SwapArgs memory data = abi.decode(callbackData, (V4SwapArgs));
 
         (uint256 amountOut, uint256 amountToPay) = _swap(data);
         IV4PoolManager poolManager = IV4PoolManager(V4_POOL_MANAGER);
@@ -307,7 +336,7 @@ contract ZeusSwapDelegator {
         return "";
     }
 
-    function _swap(V4CallBackData memory data) internal returns (uint256 amountOut, uint256 amountToPay) {
+    function _swap(V4SwapArgs memory data) internal returns (uint256 amountOut, uint256 amountToPay) {
         (address currency0, address currency1) = sortCurrencies(data.currencyIn, data.currencyOut);
 
         V4PoolKey memory poolKey = V4PoolKey(currency0, currency1, data.fee, data.tickSpacing, data.hooks);
