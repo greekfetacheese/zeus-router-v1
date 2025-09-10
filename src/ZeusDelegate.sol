@@ -75,6 +75,7 @@ contract ZeusSwapDelegator {
         bytes[] inputs;
         address currencyOut;
         uint256 amountMin;
+        uint256 deadline;
     }
 
     /// @notice Parameters for a V2/V3 swap
@@ -115,18 +116,6 @@ contract ZeusSwapDelegator {
         address recipient;
     }
 
-    struct V4CallBackData {
-        address currencyIn;
-        address currencyOut;
-        uint256 amountIn;
-        uint24 fee;
-        int24 tickSpacing;
-        bool zeroForOne;
-        address hooks;
-        bytes hookData;
-        address recipient;
-    }
-
     struct WrapETH {
         uint256 amountMin;
     }
@@ -141,6 +130,7 @@ contract ZeusSwapDelegator {
 
     function zSwap(ZParams calldata params) public payable {
         require(msg.sender == address(this), "Only callable by self");
+        require(params.deadline >= block.timestamp, "Deadline: Expired");
 
         // Keep track of the eth/weth balances before the swap
 

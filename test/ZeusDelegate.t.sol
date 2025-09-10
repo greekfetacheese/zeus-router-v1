@@ -79,6 +79,41 @@ contract ZeusDelegateTest is Test {
         deal(UNI, Alice, UNI_AMOUNT);
     }
 
+    function test_Deadline() public {
+        vm.startPrank(Alice);
+
+        Vm.SignedDelegation memory signedDelegation = vm.signDelegation(address(ZeusDelegator), AliceKey);
+
+        vm.attachDelegation(signedDelegation);
+
+        bytes[] memory inputs = new bytes[](1);
+        bytes memory commands = abi.encodePacked(V2_SWAP);
+
+        ZeusSwapDelegator.V2V3SwapParams memory swapParams = ZeusSwapDelegator.V2V3SwapParams({
+            amountIn: USDC_AMOUNT,
+            tokenIn: USDC,
+            tokenOut: DAI,
+            pool: UNI_V2_USDC_DAI,
+            poolVariant: 0x00,
+            fee: FEE_3000
+        });
+
+        inputs[0] = abi.encode(swapParams);
+
+        ZeusSwapDelegator.ZParams memory params = ZeusSwapDelegator.ZParams({
+            commands: commands,
+            inputs: inputs,
+            currencyOut: DAI,
+            amountMin: 0,
+            deadline: block.timestamp - 1
+        });
+
+        vm.expectRevert(bytes("Deadline: Expired"));
+        ZeusSwapDelegator(Alice).zSwap(params);
+
+        vm.stopPrank();
+    }
+
     function test_V3_CallbackVerification() public {
         vm.startPrank(Alice);
 
@@ -134,7 +169,8 @@ contract ZeusDelegateTest is Test {
             commands: commands,
             inputs: inputs,
             currencyOut: WETH,
-            amountMin: type(uint256).max
+            amountMin: type(uint256).max,
+            deadline: block.timestamp + 100
         });
 
         vm.expectRevert(bytes("SlippageCheck: Insufficient ETH"));
@@ -161,7 +197,8 @@ contract ZeusDelegateTest is Test {
             commands: commands,
             inputs: inputs,
             currencyOut: WETH,
-            amountMin: type(uint256).max
+            amountMin: type(uint256).max,
+            deadline: block.timestamp + 100
         });
 
         vm.expectRevert(bytes("SlippageCheck: Insufficient WETH"));
@@ -198,7 +235,8 @@ contract ZeusDelegateTest is Test {
             commands: commands,
             inputs: inputs,
             currencyOut: DAI,
-            amountMin: type(uint256).max
+            amountMin: type(uint256).max,
+            deadline: block.timestamp + 100
         });
 
         vm.expectRevert(bytes("SlippageCheck: Insufficient output"));
@@ -232,7 +270,8 @@ contract ZeusDelegateTest is Test {
             commands: commands,
             inputs: inputs,
             currencyOut: DAI,
-            amountMin: 0
+            amountMin: 0,
+            deadline: block.timestamp + 100
         });
 
         uint256 balanceBefore = SafeTransferLib.balanceOf(DAI, Alice);
@@ -268,7 +307,8 @@ contract ZeusDelegateTest is Test {
             commands: commands,
             inputs: inputs,
             currencyOut: USDC,
-            amountMin: 0
+            amountMin: 0,
+            deadline: block.timestamp + 100
         });
 
         uint256 balanceBefore = SafeTransferLib.balanceOf(USDC, Alice);
@@ -307,7 +347,8 @@ contract ZeusDelegateTest is Test {
             commands: commands,
             inputs: inputs,
             currencyOut: WBTC,
-            amountMin: 0
+            amountMin: 0,
+            deadline: block.timestamp + 100
         });
 
         uint256 balanceBefore = SafeTransferLib.balanceOf(WBTC, Alice);
