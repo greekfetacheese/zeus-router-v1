@@ -79,6 +79,44 @@ contract ZeusDelegateTest is Test {
         deal(UNI, Alice, UNI_AMOUNT);
     }
 
+    function test_unauthorizedCall() public {
+        vm.startPrank(Bob);
+
+        Vm.SignedDelegation memory signedDelegation = vm.signDelegation(address(ZeusDelegator), AliceKey);
+
+        vm.attachDelegation(signedDelegation);
+
+        bytes[] memory inputs = new bytes[](1);
+        bytes memory commands = abi.encodePacked(V4_SWAP);
+
+        ZeusSwapDelegator.V4SwapArgs memory swapParams = ZeusSwapDelegator.V4SwapArgs({
+            currencyIn: ETH,
+            currencyOut: USDT,
+            amountIn: ETH_AMOUNT,
+            fee: FEE_3000,
+            tickSpacing: 60,
+            zeroForOne: true,
+            hooks: address(0),
+            hookData: bytes(""),
+            recipient: Bob
+        });
+
+        inputs[0] = abi.encode(swapParams);
+
+        ZeusSwapDelegator.ZParams memory params = ZeusSwapDelegator.ZParams({
+            commands: commands,
+            inputs: inputs,
+            currencyOut: USDT,
+            amountMin: 0,
+            deadline: block.timestamp + 100
+        });
+
+        vm.expectRevert(bytes("Only callable by self"));
+        ZeusSwapDelegator(Alice).zSwap(params);
+
+        vm.stopPrank();
+    }
+
     function test_Deadline() public {
         vm.startPrank(Alice);
 
