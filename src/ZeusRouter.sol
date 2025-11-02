@@ -9,22 +9,28 @@ import {Commands} from "./lib/Commands.sol";
 import {Inputs} from "./lib/Inputs.sol";
 import {SafeTransferLib} from "./lib/SafeTransferLib.sol";
 
-// ZZZZZZZZZZZZZZZZZZZ
-// Z:::::::::::::::::Z
-// Z:::::::::::::::::Z
-// Z:::ZZZZZZZZ:::::Z
-// ZZZZZ     Z:::::Z      eeeeeeeeeeee    uuuuuu    uuuuuu      ssssssssss
-//         Z:::::Z      ee::::::::::::ee  u::::u    u::::u    ss::::::::::s
-//        Z:::::Z      e::::::eeeee:::::eeu::::u    u::::u  ss:::::::::::::s
-//       Z:::::Z      e::::::e     e:::::eu::::u    u::::u  s::::::ssss:::::s
-//      Z:::::Z       e:::::::eeeee::::::eu::::u    u::::u   s:::::s  ssssss
-//     Z:::::Z        e:::::::::::::::::e u::::u    u::::u     s::::::s
-//    Z:::::Z         e::::::eeeeeeeeeee  u::::u    u::::u        s::::::s
-// ZZZ:::::Z     ZZZZZe:::::::e           u:::::uuuu:::::u  ssssss   s:::::s
-// Z::::::ZZZZZZZZ:::Ze::::::::e          u:::::::::::::::uus:::::ssss::::::s
-// Z:::::::::::::::::Z e::::::::eeeeeeee   u:::::::::::::::us::::::::::::::s
-// Z:::::::::::::::::Z  ee:::::::::::::e    uu::::::::uu:::u s:::::::::::ss
-// ZZZZZZZZZZZZZZZZZZZ    eeeeeeeeeeeeee      uuuuuuuu  uuuu  sssssssssss
+/*
+ZZZZZZZZZZZZZZZZZZZ
+Z:::::::::::::::::Z
+Z:::::::::::::::::Z
+Z:::ZZZZZZZZ:::::Z
+ZZZZZ     Z:::::Z      eeeeeeeeeeee    uuuuuu    uuuuuu      ssssssssss
+        Z:::::Z      ee::::::::::::ee  u::::u    u::::u    ss::::::::::s
+       Z:::::Z      e::::::eeeee:::::eeu::::u    u::::u  ss:::::::::::::s
+      Z:::::Z      e::::::e     e:::::eu::::u    u::::u  s::::::ssss:::::s
+     Z:::::Z       e:::::::eeeee::::::eu::::u    u::::u   s:::::s  ssssss
+    Z:::::Z        e:::::::::::::::::e u::::u    u::::u     s::::::s
+   Z:::::Z         e::::::eeeeeeeeeee  u::::u    u::::u        s::::::s
+ZZZ:::::Z     ZZZZZe:::::::e           u:::::uuuu:::::u  ssssss   s:::::s
+Z::::::ZZZZZZZZ:::Ze::::::::e          u:::::::::::::::uus:::::ssss::::::s
+Z:::::::::::::::::Z e::::::::eeeeeeee   u:::::::::::::::us::::::::::::::s
+Z:::::::::::::::::Z  ee:::::::::::::e    uu::::::::uu:::u s:::::::::::ss
+ZZZZZZZZZZZZZZZZZZZ    eeeeeeeeeeeeee      uuuuuuuu  uuuu  sssssssssss
+
+Swap router contract made for Zeus
+Github: https://github.com/greekfetacheese/zeus-router-v1
+Main repo: https://github.com/greekfetacheese/zeus
+*/
 
 library BalanceDeltaLibrary {
     function amount0(int256 balanceDelta) internal pure returns (int128 _amount0) {
@@ -67,11 +73,37 @@ contract ZeusRouter {
         PANCAKE_SWAP_V3_FACTORY = params.pancakeSwapV3Factory;
     }
 
+    function zSwap(Inputs.ZParams calldata params) public payable {
+        require(params.deadline >= block.timestamp, "Deadline: Expired");
+
+        uint256 currencyOutBalanceBefore;
+
+        if (params.currencyOut == ETH) {
+            currencyOutBalanceBefore = msg.sender.balance;
+        } else {
+            currencyOutBalanceBefore = SafeTransferLib.balanceOf(params.currencyOut, msg.sender);
+        }
+
+        execute(params);
+
+        uint256 balanceAfter;
+        if (params.currencyOut == ETH) {
+            balanceAfter = msg.sender.balance;
+        } else {
+            balanceAfter = SafeTransferLib.balanceOf(params.currencyOut, msg.sender);
+        }
+
+        require(balanceAfter > currencyOutBalanceBefore, "Bad Swap: No amount received");
+
+        uint256 realAmountOut = balanceAfter - currencyOutBalanceBefore;
+        require(realAmountOut >= params.amountMin, "SlippageCheck: Insufficient output");
+    }
+
     /// @notice Executes a series of commands with their corresponding inputs.
-    function execute(bytes calldata commands, bytes[] calldata inputs) public payable {
-        for (uint256 i = 0; i < commands.length; i++) {
-            bytes1 command = commands[i];
-            bytes memory input = inputs[i];
+    function execute(Inputs.ZParams calldata swapParams) internal {
+        for (uint256 i = 0; i < swapParams.commands.length; i++) {
+            bytes1 command = swapParams.commands[i];
+            bytes memory input = swapParams.inputs[i];
 
             bool isValid = command >= Commands.PERMIT2_PERMIT && command <= Commands.SWEEP;
             require(isValid, "Invalid command");
@@ -81,11 +113,7 @@ contract ZeusRouter {
                 IPermit2(PERMIT2).permit(msg.sender, params.permitSingle, params.signature);
             }
 
-            if (command == Commands.V2_SWAP) {
-                _swapV2V3(input);
-            }
-
-            if (command == Commands.V3_SWAP) {
+            if (command == Commands.V2_SWAP || command == Commands.V3_SWAP) {
                 _swapV2V3(input);
             }
 
@@ -107,10 +135,49 @@ contract ZeusRouter {
         }
     }
 
+    /// @notice Wraps contract's ETH into WETH
+    function wrapETH(bytes memory input) internal {
+        Inputs.WrapETH memory params = abi.decode(input, (Inputs.WrapETH));
+        IWETH(WETH).deposit{value: params.amount}();
+
+        if (params.recipient != address(this)) {
+            SafeTransferLib.safeTransfer(WETH, params.recipient, params.amount);
+        }
+    }
+
+    /// @notice Unwraps all WETH from the contract to the recipient
+    function unwrapWETH(bytes memory input) internal {
+        Inputs.UnwrapWETH memory params = abi.decode(input, (Inputs.UnwrapWETH));
+        uint256 balance = SafeTransferLib.balanceOf(WETH, address(this));
+        require(balance >= params.amountMin, "unwrapWETH SlippageCheck: Insufficient WETH");
+
+        IWETH(WETH).withdraw(balance);
+
+        if (params.recipient != address(this)) {
+            SafeTransferLib.forceSafeTransferETH(params.recipient, balance);
+        }
+    }
+
+    /// @notice Sweeps all of the contract's ERC20 or ETH and sends it to the recipient
+    function sweep(bytes memory input) internal {
+        Inputs.Sweep memory params = abi.decode(input, (Inputs.Sweep));
+        uint256 balance;
+        if (params.currency == ETH) {
+            balance = address(this).balance;
+            require(balance >= params.amountMin, "SweepSlippageCheck: Insufficient ETH");
+            SafeTransferLib.forceSafeTransferETH(params.recipient, balance);
+        } else {
+            balance = SafeTransferLib.balanceOf(params.currency, address(this));
+            require(balance >= params.amountMin, "SweepSlippageCheck: Insufficient token balance");
+            SafeTransferLib.safeTransfer(params.currency, params.recipient, balance);
+        }
+    }
+
     function _swapV2V3(bytes memory input) internal {
         Inputs.V2V3SwapParams memory params = abi.decode(input, (Inputs.V2V3SwapParams));
 
-        uint256 balanceBefore = SafeTransferLib.balanceOf(params.tokenOut, params.recipient);
+        uint256 balance = SafeTransferLib.balanceOf(params.tokenIn, msg.sender);
+        require(balance >= params.amountIn, "Swap Failed: Insufficient input");
 
         if (params.poolVariant == 0) {
             if (params.permit2) {
@@ -125,76 +192,11 @@ contract ZeusRouter {
         } else {
             revert("Invalid pool variant");
         }
-
-        uint256 balanceAfter = SafeTransferLib.balanceOf(params.tokenOut, params.recipient);
-
-        require(balanceAfter > balanceBefore, "Bad Swap: No amount received");
-
-        uint256 realAmountOut = balanceAfter - balanceBefore;
-        require(realAmountOut >= params.amountOutMin, "SlippageCheck: Insufficient output");
     }
 
     function _swapV4(bytes memory input) internal {
         Inputs.V4SwapParams memory params = abi.decode(input, (Inputs.V4SwapParams));
-
-        uint256 balanceBefore;
-        if (params.currencyOut == ETH) {
-            balanceBefore = params.recipient.balance;
-        } else {
-            balanceBefore = SafeTransferLib.balanceOf(params.currencyOut, params.recipient);
-        }
-
         Swap.OnUniswapV4(params, msg.sender, V4_POOL_MANAGER);
-
-        uint256 balanceAfter;
-        if (params.currencyOut == ETH) {
-            balanceAfter = params.recipient.balance;
-        } else {
-            balanceAfter = SafeTransferLib.balanceOf(params.currencyOut, params.recipient);
-        }
-
-        require(balanceAfter > balanceBefore, "Bad Swap: No amount received");
-
-        uint256 realAmountOut = balanceAfter - balanceBefore;
-        require(realAmountOut >= params.amountOutMin, "SlippageCheck: Insufficient output");
-    }
-
-    /// @notice Wraps ETH into WETH
-    function wrapETH(bytes memory input) internal {
-        Inputs.WrapETH memory params = abi.decode(input, (Inputs.WrapETH));
-        IWETH(WETH).deposit{value: params.amount}();
-
-        if (params.recipient != address(this)) {
-            SafeTransferLib.safeTransfer(WETH, params.recipient, params.amount);
-        }
-    }
-
-    /// @notice Unwraps all WETH from the contract to the recipient
-    function unwrapWETH(bytes memory input) internal {
-        Inputs.UnwrapWETH memory params = abi.decode(input, (Inputs.UnwrapWETH));
-        uint256 balance = SafeTransferLib.balanceOf(WETH, address(this));
-        require(balance >= params.amountMin, "SlippageCheck: Insufficient WETH");
-
-        IWETH(WETH).withdraw(balance);
-
-        if (params.recipient != address(this)) {
-            SafeTransferLib.forceSafeTransferETH(params.recipient, balance);
-        }
-    }
-
-    /// @notice Sweeps all of the contract's ERC20 or ETH to the recipient
-    function sweep(bytes memory input) internal {
-        Inputs.Sweep memory params = abi.decode(input, (Inputs.Sweep));
-        uint256 balance;
-        if (params.currency == ETH) {
-            balance = address(this).balance;
-            require(balance >= params.amountMin, "SlippageCheck: Insufficient ETH");
-            SafeTransferLib.forceSafeTransferETH(params.recipient, balance);
-        } else {
-            balance = SafeTransferLib.balanceOf(params.currency, address(this));
-            require(balance >= params.amountMin, "SlippageCheck: Insufficient token balance");
-            SafeTransferLib.safeTransfer(params.currency, params.recipient, balance);
-        }
     }
 
     /// @notice Callback for Uniswap V3 swaps.

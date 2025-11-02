@@ -5,22 +5,28 @@ import {IWETH} from "./interfaces/IWETH.sol";
 import "./interfaces/Uniswap.sol";
 import {SafeTransferLib} from "./lib/SafeTransferLib.sol";
 
-// ZZZZZZZZZZZZZZZZZZZ
-// Z:::::::::::::::::Z
-// Z:::::::::::::::::Z
-// Z:::ZZZZZZZZ:::::Z
-// ZZZZZ     Z:::::Z      eeeeeeeeeeee    uuuuuu    uuuuuu      ssssssssss
-//         Z:::::Z      ee::::::::::::ee  u::::u    u::::u    ss::::::::::s
-//        Z:::::Z      e::::::eeeee:::::eeu::::u    u::::u  ss:::::::::::::s
-//       Z:::::Z      e::::::e     e:::::eu::::u    u::::u  s::::::ssss:::::s
-//      Z:::::Z       e:::::::eeeee::::::eu::::u    u::::u   s:::::s  ssssss
-//     Z:::::Z        e:::::::::::::::::e u::::u    u::::u     s::::::s
-//    Z:::::Z         e::::::eeeeeeeeeee  u::::u    u::::u        s::::::s
-// ZZZ:::::Z     ZZZZZe:::::::e           u:::::uuuu:::::u  ssssss   s:::::s
-// Z::::::ZZZZZZZZ:::Ze::::::::e          u:::::::::::::::uus:::::ssss::::::s
-// Z:::::::::::::::::Z e::::::::eeeeeeee   u:::::::::::::::us::::::::::::::s
-// Z:::::::::::::::::Z  ee:::::::::::::e    uu::::::::uu:::u s:::::::::::ss
-// ZZZZZZZZZZZZZZZZZZZ    eeeeeeeeeeeeee      uuuuuuuu  uuuu  sssssssssss
+/*
+ZZZZZZZZZZZZZZZZZZZ
+Z:::::::::::::::::Z
+Z:::::::::::::::::Z
+Z:::ZZZZZZZZ:::::Z
+ZZZZZ     Z:::::Z      eeeeeeeeeeee    uuuuuu    uuuuuu      ssssssssss
+        Z:::::Z      ee::::::::::::ee  u::::u    u::::u    ss::::::::::s
+       Z:::::Z      e::::::eeeee:::::eeu::::u    u::::u  ss:::::::::::::s
+      Z:::::Z      e::::::e     e:::::eu::::u    u::::u  s::::::ssss:::::s
+     Z:::::Z       e:::::::eeeee::::::eu::::u    u::::u   s:::::s  ssssss
+    Z:::::Z        e:::::::::::::::::e u::::u    u::::u     s::::::s
+   Z:::::Z         e::::::eeeeeeeeeee  u::::u    u::::u        s::::::s
+ZZZ:::::Z     ZZZZZe:::::::e           u:::::uuuu:::::u  ssssss   s:::::s
+Z::::::ZZZZZZZZ:::Ze::::::::e          u:::::::::::::::uus:::::ssss::::::s
+Z:::::::::::::::::Z e::::::::eeeeeeee   u:::::::::::::::us::::::::::::::s
+Z:::::::::::::::::Z  ee:::::::::::::e    uu::::::::uu:::u s:::::::::::ss
+ZZZZZZZZZZZZZZZZZZZ    eeeeeeeeeeeeee      uuuuuuuu  uuuu  sssssssssss
+
+Swap router contract made for Zeus
+Github: https://github.com/greekfetacheese/zeus-router-v1
+Main repo: https://github.com/greekfetacheese/zeus
+*/
 
 library BalanceDeltaLibrary {
     function amount0(int256 balanceDelta) internal pure returns (int128 _amount0) {

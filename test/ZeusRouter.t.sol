@@ -104,6 +104,59 @@ contract ZeusRouterTest is Test {
         sig = abi.encodePacked(r, s, v);
     }
 
+    function testDeadline() public {
+        vm.startPrank(user);
+
+        bytes[] memory inputs = new bytes[](2);
+        bytes memory commands = abi.encodePacked(Commands.PERMIT2_PERMIT, Commands.V2_SWAP);
+
+        uint256 deadline = block.timestamp - 1;
+
+        bytes memory signature = permitSig(userPrivateKey, USDC, USDC_AMOUNT, deadline);
+        Inputs.Permit2Permit memory permit2Permit = Inputs.Permit2Permit({
+            permitSingle: IPermit2.PermitSingle({
+                details: IPermit2.PermitDetails({
+                    token: USDC,
+                    amount: uint160(USDC_AMOUNT),
+                    expiration: uint48(deadline),
+                    nonce: 0
+                }),
+                spender: address(router),
+                sigDeadline: deadline
+            }),
+            signature: signature
+        });
+        inputs[0] = abi.encode(permit2Permit);
+
+        Inputs.V2V3SwapParams memory swapParams = Inputs.V2V3SwapParams({
+            amountIn: USDC_AMOUNT,
+            amountOutMin: 0,
+            tokenIn: USDC,
+            tokenOut: DAI,
+            pool: UNI_V2_USDC_DAI,
+            poolVariant: 0,
+            recipient: user,
+            fee: FEE_3000,
+            permit2: true
+        });
+        
+        inputs[1] = abi.encode(swapParams);
+
+        vm.expectRevert(bytes("Deadline: Expired"));
+
+        Inputs.ZParams memory params = Inputs.ZParams({
+            commands: commands,
+            inputs: inputs,
+            currencyOut: DAI,
+            amountMin: 0,
+            deadline: deadline
+        });
+
+        router.zSwap(params);
+
+        vm.stopPrank();
+    }
+
     function test_V3_CallbackVerification() public {
         vm.startPrank(user);
 
@@ -186,53 +239,16 @@ contract ZeusRouterTest is Test {
         inputs[1] = abi.encode(swapParams);
 
         vm.expectRevert(bytes("SlippageCheck: Insufficient output"));
-        router.execute(commands, inputs);
 
-        vm.stopPrank();
-    }
-
-    function test_V3_should_revert_on_slippage_check() public {
-        vm.startPrank(user);
-
-        // PERMIT2 -> V3SWAP
-
-        bytes[] memory inputs = new bytes[](2);
-        bytes memory commands = abi.encodePacked(Commands.PERMIT2_PERMIT, Commands.V3_SWAP);
-
-        uint256 deadline = block.timestamp + 1000;
-
-        bytes memory signature = permitSig(userPrivateKey, USDC, USDC_AMOUNT, deadline);
-        Inputs.Permit2Permit memory permit2Permit = Inputs.Permit2Permit({
-            permitSingle: IPermit2.PermitSingle({
-                details: IPermit2.PermitDetails({
-                    token: USDC,
-                    amount: uint160(USDC_AMOUNT),
-                    expiration: uint48(deadline),
-                    nonce: 0
-                }),
-                spender: address(router),
-                sigDeadline: deadline
-            }),
-            signature: signature
+        Inputs.ZParams memory params = Inputs.ZParams({
+            commands: commands,
+            inputs: inputs,
+            currencyOut: DAI,
+            amountMin: type(uint256).max,
+            deadline: deadline
         });
 
-        inputs[0] = abi.encode(permit2Permit);
-
-        Inputs.V2V3SwapParams memory swapParams = Inputs.V2V3SwapParams({
-            amountIn: USDC_AMOUNT,
-            amountOutMin: type(uint256).max,
-            tokenIn: USDC,
-            tokenOut: WETH,
-            pool: UNI_V3_USDC_WETH,
-            poolVariant: 1,
-            recipient: user,
-            fee: FEE_500,
-            permit2: true
-        });
-        inputs[1] = abi.encode(swapParams);
-
-        vm.expectRevert(bytes("SlippageCheck: Insufficient output"));
-        router.execute(commands, inputs);
+        router.zSwap(params);
 
         vm.stopPrank();
     }
@@ -279,35 +295,16 @@ contract ZeusRouterTest is Test {
         inputs[1] = abi.encode(swapParams);
 
         vm.expectRevert(bytes("SlippageCheck: Insufficient output"));
-        router.execute(commands, inputs);
 
-        vm.stopPrank();
-    }
-
-    function test_V4_ERC_Output_should_revert_on_slippage_check() public {
-        vm.startPrank(user);
-
-        bytes[] memory inputs = new bytes[](1);
-        bytes memory commands = abi.encodePacked(Commands.V4_SWAP);
-
-        Inputs.V4SwapParams memory swapParams = Inputs.V4SwapParams({
-            currencyIn: ETH,
-            currencyOut: UNI,
-            amountIn: ETH_AMOUNT,
-            amountOutMin: type(uint256).max,
-            fee: FEE_3000,
-            tickSpacing: 60,
-            zeroForOne: true,
-            hooks: address(0),
-            hookData: bytes(""),
-            recipient: user,
-            permit2: false
+        Inputs.ZParams memory params = Inputs.ZParams({
+            commands: commands,
+            inputs: inputs,
+            currencyOut: ETH,
+            amountMin: type(uint256).max,
+            deadline: deadline
         });
 
-        inputs[0] = abi.encode(swapParams);
-
-        vm.expectRevert(bytes("SlippageCheck: Insufficient output"));
-        router.execute{value: ETH_AMOUNT}(commands, inputs);
+        router.zSwap(params);
 
         vm.stopPrank();
     }
@@ -341,8 +338,17 @@ contract ZeusRouterTest is Test {
 
         inputs[1] = abi.encode(unwrapParams);
 
-        vm.expectRevert(bytes("SlippageCheck: Insufficient WETH"));
-        router.execute(commands, inputs);
+        vm.expectRevert(bytes("unwrapWETH SlippageCheck: Insufficient WETH"));
+
+        Inputs.ZParams memory params = Inputs.ZParams({
+            commands: commands,
+            inputs: inputs,
+            currencyOut: WETH,
+            amountMin: WETH_AMOUNT + 1,
+            deadline: deadline
+        });
+
+        router.zSwap(params);
 
         vm.stopPrank();
     }
@@ -350,8 +356,8 @@ contract ZeusRouterTest is Test {
     function test_SWEEP_should_revert_on_slippage_check() public {
         vm.startPrank(user);
 
-        bytes[] memory inputs = new bytes[](2);
-        bytes memory commands = abi.encodePacked(Commands.PERMIT2_PERMIT, Commands.SWEEP);
+        bytes[] memory inputs = new bytes[](3);
+        bytes memory commands = abi.encodePacked(Commands.PERMIT2_PERMIT, Commands.V2_SWAP, Commands.SWEEP);
 
         uint256 deadline = block.timestamp + 1000;
 
@@ -372,12 +378,33 @@ contract ZeusRouterTest is Test {
 
         inputs[0] = abi.encode(permit2Permit);
 
-        Inputs.Sweep memory sweepParams = Inputs.Sweep({currency: USDC, recipient: user, amountMin: USDC_AMOUNT + 1});
+        Inputs.V2V3SwapParams memory swapParams = Inputs.V2V3SwapParams({
+            amountIn: USDC_AMOUNT,
+            amountOutMin: 0,
+            tokenIn: USDC,
+            tokenOut: DAI,
+            pool: UNI_V2_USDC_DAI,
+            poolVariant: 0,
+            recipient: address(router),
+            fee: FEE_3000,
+            permit2: true
+        });
+        inputs[1] = abi.encode(swapParams);
 
-        inputs[1] = abi.encode(sweepParams);
+        Inputs.Sweep memory sweepParams = Inputs.Sweep({currency: DAI, recipient: user, amountMin: type(uint256).max});
+        inputs[2] = abi.encode(sweepParams);
 
-        vm.expectRevert(bytes("SlippageCheck: Insufficient token balance"));
-        router.execute(commands, inputs);
+        vm.expectRevert(bytes("SweepSlippageCheck: Insufficient token balance"));
+
+        Inputs.ZParams memory params = Inputs.ZParams({
+            commands: commands,
+            inputs: inputs,
+            currencyOut: DAI,
+            amountMin: type(uint256).max,
+            deadline: deadline
+        });
+
+        router.zSwap(params);
 
         vm.stopPrank();
     }
@@ -420,7 +447,16 @@ contract ZeusRouterTest is Test {
         inputs[1] = abi.encode(swapParams);
 
         uint256 balanceBefore = SafeTransferLib.balanceOf(DAI, user);
-        router.execute(commands, inputs);
+
+        Inputs.ZParams memory params = Inputs.ZParams({
+            commands: commands,
+            inputs: inputs,
+            currencyOut: DAI,
+            amountMin: 0,
+            deadline: deadline
+        });
+
+        router.zSwap(params);
 
         uint256 balanceAfter = SafeTransferLib.balanceOf(DAI, user);
         assertGt(balanceAfter, balanceBefore);
@@ -467,7 +503,16 @@ contract ZeusRouterTest is Test {
         inputs[1] = abi.encode(swapParams);
 
         uint256 balanceBefore = SafeTransferLib.balanceOf(USDT, user);
-        router.execute(commands, inputs);
+
+        Inputs.ZParams memory params = Inputs.ZParams({
+            commands: commands,
+            inputs: inputs,
+            currencyOut: USDT,
+            amountMin: 0,
+            deadline: deadline
+        });
+
+        router.zSwap(params);
 
         uint256 balanceAfter = SafeTransferLib.balanceOf(USDT, user);
         assertGt(balanceAfter, balanceBefore);
@@ -514,7 +559,16 @@ contract ZeusRouterTest is Test {
         inputs[1] = abi.encode(swapParams);
 
         uint256 balanceBefore = SafeTransferLib.balanceOf(WETH, user);
-        router.execute(commands, inputs);
+
+        Inputs.ZParams memory params = Inputs.ZParams({
+            commands: commands,
+            inputs: inputs,
+            currencyOut: WETH,
+            amountMin: 0,
+            deadline: deadline
+        });
+
+        router.zSwap(params);
 
         uint256 balanceAfter = SafeTransferLib.balanceOf(WETH, user);
         assertGt(balanceAfter, balanceBefore);
@@ -544,8 +598,16 @@ contract ZeusRouterTest is Test {
 
         inputs[1] = abi.encode(swapParams);
 
+        Inputs.ZParams memory params = Inputs.ZParams({
+            commands: commands,
+            inputs: inputs,
+            currencyOut: USDC,
+            amountMin: 0,
+            deadline: block.timestamp + 1000
+        });
+
         uint256 balanceBefore = SafeTransferLib.balanceOf(USDC, user);
-        router.execute{value: WETH_AMOUNT}(commands, inputs);
+        router.zSwap{value: WETH_AMOUNT}(params);
 
         uint256 balanceAfter = SafeTransferLib.balanceOf(USDC, user);
         assertGt(balanceAfter, balanceBefore);
@@ -595,8 +657,16 @@ contract ZeusRouterTest is Test {
 
         inputs[2] = abi.encode(unwrapParams);
 
+        Inputs.ZParams memory params = Inputs.ZParams({
+            commands: commands,
+            inputs: inputs,
+            currencyOut: ETH,
+            amountMin: 0,
+            deadline: deadline
+        });
+
         uint256 balanceBefore = user.balance;
-        router.execute(commands, inputs);
+        router.zSwap(params);
 
         uint256 balanceAfter = user.balance;
         assertGt(balanceAfter, balanceBefore);
@@ -643,7 +713,16 @@ contract ZeusRouterTest is Test {
         inputs[1] = abi.encode(swapParams);
 
         uint256 balanceBefore = SafeTransferLib.balanceOf(WBTC, user);
-        router.execute(commands, inputs);
+
+        Inputs.ZParams memory params = Inputs.ZParams({
+            commands: commands,
+            inputs: inputs,
+            currencyOut: WBTC,
+            amountMin: 0,
+            deadline: deadline
+        });
+
+        router.zSwap(params);
 
         uint256 balanceAfter = SafeTransferLib.balanceOf(WBTC, user);
         assertGt(balanceAfter, balanceBefore);
@@ -672,7 +751,16 @@ contract ZeusRouterTest is Test {
         inputs[0] = abi.encode(swapParams);
 
         uint256 balanceBefore = SafeTransferLib.balanceOf(UNI, user);
-        router.execute{value: ETH_AMOUNT}(commands, inputs);
+
+        Inputs.ZParams memory params = Inputs.ZParams({
+            commands: commands,
+            inputs: inputs,
+            currencyOut: UNI,
+            amountMin: 0,
+            deadline: block.timestamp + 1000
+        });
+
+        router.zSwap{value: ETH_AMOUNT}(params);
 
         uint256 balanceAfter = SafeTransferLib.balanceOf(UNI, user);
         assertGt(balanceAfter, balanceBefore);
@@ -719,7 +807,16 @@ contract ZeusRouterTest is Test {
         inputs[1] = abi.encode(swapParams);
 
         uint256 balanceBefore = user.balance;
-        router.execute(commands, inputs);
+
+        Inputs.ZParams memory params = Inputs.ZParams({
+            commands: commands,
+            inputs: inputs,
+            currencyOut: ETH,
+            amountMin: 0,
+            deadline: deadline
+        });
+
+        router.zSwap(params);
 
         uint256 balanceAfter = user.balance;
         assertGt(balanceAfter, balanceBefore);

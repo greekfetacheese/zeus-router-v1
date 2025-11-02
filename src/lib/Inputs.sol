@@ -4,6 +4,14 @@ pragma solidity >=0.7.0 <0.9.0;
 import {IPermit2} from "../interfaces/IPermit2.sol";
 
 library Inputs {
+        struct ZParams {
+        bytes commands;
+        bytes[] inputs;
+        address currencyOut;
+        uint256 amountMin;
+        uint256 deadline;
+    }
+    
     struct Permit2Permit {
         IPermit2.PermitSingle permitSingle;
         bytes signature;
