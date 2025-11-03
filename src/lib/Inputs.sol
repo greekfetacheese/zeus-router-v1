@@ -28,7 +28,6 @@ library Inputs {
     /// @param permit2 Whether the funds should come from permit or are already in the router
     struct V2V3SwapParams {
         uint256 amountIn;
-        uint256 amountOutMin;
         address tokenIn;
         address tokenOut;
         address pool;
@@ -43,7 +42,6 @@ library Inputs {
     /// @param currencyIn The input currency (address(0) for ETH)
     /// @param currencyOut The output currency (address(0) for ETH)
     /// @param amountIn The amount of currencyIn to swap
-    /// @param amountOutMin The minimum amount of currencyOut to receive
     /// @param fee The pool fee in hundredths of bips (eg. 3000 for 0.3%)
     /// @param tickSpacing The tick spacing of the pool
     /// @param zeroForOne Whether the swap is from currencyIn to currencyOut
@@ -55,7 +53,6 @@ library Inputs {
         address currencyIn;
         address currencyOut;
         uint256 amountIn;
-        uint256 amountOutMin;
         uint24 fee;
         int24 tickSpacing;
         bool zeroForOne;
@@ -73,21 +70,23 @@ library Inputs {
         uint256 amount;
     }
 
+    /// @notice WrapAllETH
+    /// @param recipient The recipient of the wrapped ETH
+    struct WrapAllETH {
+        address recipient;
+    }
+    
     /// @notice UnwrapWETH
     /// @param recipient The recipient of the unwrapped ETH
-    /// @param amountMin The minimum amount of ETH to unwrap
     struct UnwrapWETH {
         address recipient;
-        uint256 amountMin;
     }
 
     /// @notice Sweep
     /// @param currency The currency to sweep, Use address(0) for ETH
     /// @param recipient The recipient of the tokens
-    /// @param amountMin The minimum amount of tokens to sweep
     struct Sweep {
         address currency;
         address recipient;
-        uint256 amountMin;
     }
 }

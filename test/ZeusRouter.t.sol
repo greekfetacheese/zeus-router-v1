@@ -130,7 +130,6 @@ contract ZeusRouterTest is Test {
 
         Inputs.V2V3SwapParams memory swapParams = Inputs.V2V3SwapParams({
             amountIn: USDC_AMOUNT,
-            amountOutMin: 0,
             tokenIn: USDC,
             tokenOut: DAI,
             pool: UNI_V2_USDC_DAI,
@@ -139,7 +138,7 @@ contract ZeusRouterTest is Test {
             fee: FEE_3000,
             permit2: true
         });
-        
+
         inputs[1] = abi.encode(swapParams);
 
         vm.expectRevert(bytes("Deadline: Expired"));
@@ -182,7 +181,6 @@ contract ZeusRouterTest is Test {
             currencyIn: USDT,
             currencyOut: WBTC,
             amountIn: USDT_AMOUNT,
-            amountOutMin: 0,
             fee: FEE_3000,
             tickSpacing: 60,
             zeroForOne: false,
@@ -227,7 +225,6 @@ contract ZeusRouterTest is Test {
 
         Inputs.V2V3SwapParams memory swapParams = Inputs.V2V3SwapParams({
             amountIn: USDC_AMOUNT,
-            amountOutMin: type(uint256).max,
             tokenIn: USDC,
             tokenOut: DAI,
             pool: UNI_V2_USDC_DAI,
@@ -283,7 +280,6 @@ contract ZeusRouterTest is Test {
             currencyIn: UNI,
             currencyOut: ETH,
             amountIn: UNI_AMOUNT,
-            amountOutMin: type(uint256).max,
             fee: FEE_3000,
             tickSpacing: 60,
             zeroForOne: false,
@@ -309,20 +305,26 @@ contract ZeusRouterTest is Test {
         vm.stopPrank();
     }
 
-    function test_UnwrapWETH_should_revert_on_slippage_check() public {
+    function test_Swap_With_WETH_Output() public {
         vm.startPrank(user);
 
-        bytes[] memory inputs = new bytes[](2);
-        bytes memory commands = abi.encodePacked(Commands.PERMIT2_PERMIT, Commands.UNWRAP_WETH);
+        bytes[] memory inputs = new bytes[](5);
+        bytes memory commands = abi.encodePacked(
+            Commands.PERMIT2_PERMIT,
+            Commands.V4_SWAP,
+            Commands.PERMIT2_PERMIT,
+            Commands.V3_SWAP,
+            Commands.WRAP_ALL_ETH
+        );
 
         uint256 deadline = block.timestamp + 1000;
 
-        bytes memory signature = permitSig(userPrivateKey, WETH, WETH_AMOUNT, deadline);
+        bytes memory signature = permitSig(userPrivateKey, UNI, UNI_AMOUNT, deadline);
         Inputs.Permit2Permit memory permit2Permit = Inputs.Permit2Permit({
             permitSingle: IPermit2.PermitSingle({
                 details: IPermit2.PermitDetails({
-                    token: WETH,
-                    amount: uint160(WETH_AMOUNT),
+                    token: UNI,
+                    amount: uint160(UNI_AMOUNT),
                     expiration: uint48(deadline),
                     nonce: 0
                 }),
@@ -334,35 +336,23 @@ contract ZeusRouterTest is Test {
 
         inputs[0] = abi.encode(permit2Permit);
 
-        Inputs.UnwrapWETH memory unwrapParams = Inputs.UnwrapWETH({recipient: user, amountMin: WETH_AMOUNT + 1});
-
-        inputs[1] = abi.encode(unwrapParams);
-
-        vm.expectRevert(bytes("unwrapWETH SlippageCheck: Insufficient WETH"));
-
-        Inputs.ZParams memory params = Inputs.ZParams({
-            commands: commands,
-            inputs: inputs,
-            currencyOut: WETH,
-            amountMin: WETH_AMOUNT + 1,
-            deadline: deadline
+        Inputs.V4SwapParams memory swapParams = Inputs.V4SwapParams({
+            currencyIn: UNI,
+            currencyOut: ETH,
+            amountIn: UNI_AMOUNT,
+            fee: FEE_3000,
+            tickSpacing: 60,
+            zeroForOne: false,
+            hooks: address(0),
+            hookData: bytes(""),
+            recipient: address(router),
+            permit2: true
         });
 
-        router.zSwap(params);
+        inputs[1] = abi.encode(swapParams);
 
-        vm.stopPrank();
-    }
-
-    function test_SWEEP_should_revert_on_slippage_check() public {
-        vm.startPrank(user);
-
-        bytes[] memory inputs = new bytes[](3);
-        bytes memory commands = abi.encodePacked(Commands.PERMIT2_PERMIT, Commands.V2_SWAP, Commands.SWEEP);
-
-        uint256 deadline = block.timestamp + 1000;
-
-        bytes memory signature = permitSig(userPrivateKey, USDC, USDC_AMOUNT, deadline);
-        Inputs.Permit2Permit memory permit2Permit = Inputs.Permit2Permit({
+        bytes memory signature2 = permitSig(userPrivateKey, USDC, USDC_AMOUNT, deadline);
+        Inputs.Permit2Permit memory permit2Permit2 = Inputs.Permit2Permit({
             permitSingle: IPermit2.PermitSingle({
                 details: IPermit2.PermitDetails({
                     token: USDC,
@@ -373,38 +363,42 @@ contract ZeusRouterTest is Test {
                 spender: address(router),
                 sigDeadline: deadline
             }),
-            signature: signature
+            signature: signature2
         });
 
-        inputs[0] = abi.encode(permit2Permit);
+        inputs[2] = abi.encode(permit2Permit2);
 
-        Inputs.V2V3SwapParams memory swapParams = Inputs.V2V3SwapParams({
+        Inputs.V2V3SwapParams memory swapParams2 = Inputs.V2V3SwapParams({
             amountIn: USDC_AMOUNT,
-            amountOutMin: 0,
             tokenIn: USDC,
-            tokenOut: DAI,
-            pool: UNI_V2_USDC_DAI,
-            poolVariant: 0,
+            tokenOut: WETH,
+            pool: UNI_V3_USDC_WETH,
+            poolVariant: 1,
             recipient: address(router),
-            fee: FEE_3000,
+            fee: FEE_500,
             permit2: true
         });
-        inputs[1] = abi.encode(swapParams);
 
-        Inputs.Sweep memory sweepParams = Inputs.Sweep({currency: DAI, recipient: user, amountMin: type(uint256).max});
-        inputs[2] = abi.encode(sweepParams);
+        inputs[3] = abi.encode(swapParams2);
 
-        vm.expectRevert(bytes("SweepSlippageCheck: Insufficient token balance"));
+        Inputs.WrapAllETH memory wrapAllEthParams = Inputs.WrapAllETH({recipient: user});
+
+        inputs[4] = abi.encode(wrapAllEthParams);
 
         Inputs.ZParams memory params = Inputs.ZParams({
             commands: commands,
             inputs: inputs,
-            currencyOut: DAI,
-            amountMin: type(uint256).max,
+            currencyOut: WETH,
+            amountMin: 0,
             deadline: deadline
         });
 
+        uint256 balanceBefore = SafeTransferLib.balanceOf(WETH, user);
+
         router.zSwap(params);
+
+        uint256 balanceAfter = SafeTransferLib.balanceOf(WETH, user);
+        assertGt(balanceAfter, balanceBefore);
 
         vm.stopPrank();
     }
@@ -435,7 +429,6 @@ contract ZeusRouterTest is Test {
 
         Inputs.V2V3SwapParams memory swapParams = Inputs.V2V3SwapParams({
             amountIn: USDC_AMOUNT,
-            amountOutMin: 0,
             tokenIn: USDC,
             tokenOut: DAI,
             pool: UNI_V2_USDC_DAI,
@@ -490,7 +483,6 @@ contract ZeusRouterTest is Test {
 
         Inputs.V2V3SwapParams memory swapParams = Inputs.V2V3SwapParams({
             amountIn: WETH_AMOUNT,
-            amountOutMin: 0,
             tokenIn: WETH,
             tokenOut: USDT,
             pool: PANKCAKE_V3_WETH_USDT,
@@ -546,7 +538,6 @@ contract ZeusRouterTest is Test {
 
         Inputs.V2V3SwapParams memory swapParams = Inputs.V2V3SwapParams({
             amountIn: USDC_AMOUNT,
-            amountOutMin: 0,
             tokenIn: USDC,
             tokenOut: WETH,
             pool: UNI_V3_USDC_WETH,
@@ -586,7 +577,6 @@ contract ZeusRouterTest is Test {
 
         Inputs.V2V3SwapParams memory swapParams = Inputs.V2V3SwapParams({
             amountIn: WETH_AMOUNT,
-            amountOutMin: 0,
             tokenIn: WETH,
             tokenOut: USDC,
             pool: UNI_V3_USDC_WETH,
@@ -641,7 +631,6 @@ contract ZeusRouterTest is Test {
 
         Inputs.V2V3SwapParams memory swapParams = Inputs.V2V3SwapParams({
             amountIn: USDC_AMOUNT,
-            amountOutMin: 0,
             tokenIn: USDC,
             tokenOut: WETH,
             pool: UNI_V3_USDC_WETH,
@@ -653,7 +642,7 @@ contract ZeusRouterTest is Test {
 
         inputs[1] = abi.encode(swapParams);
 
-        Inputs.UnwrapWETH memory unwrapParams = Inputs.UnwrapWETH({recipient: user, amountMin: 0});
+        Inputs.UnwrapWETH memory unwrapParams = Inputs.UnwrapWETH({recipient: user});
 
         inputs[2] = abi.encode(unwrapParams);
 
@@ -701,7 +690,6 @@ contract ZeusRouterTest is Test {
             currencyIn: USDT,
             currencyOut: WBTC,
             amountIn: USDT_AMOUNT,
-            amountOutMin: 0,
             fee: FEE_3000,
             tickSpacing: 60,
             zeroForOne: false,
@@ -739,7 +727,6 @@ contract ZeusRouterTest is Test {
             currencyIn: ETH,
             currencyOut: UNI,
             amountIn: ETH_AMOUNT,
-            amountOutMin: 0,
             fee: FEE_3000,
             tickSpacing: 60,
             zeroForOne: true,
@@ -795,7 +782,6 @@ contract ZeusRouterTest is Test {
             currencyIn: UNI,
             currencyOut: ETH,
             amountIn: UNI_AMOUNT,
-            amountOutMin: 0,
             fee: FEE_3000,
             tickSpacing: 60,
             zeroForOne: false,

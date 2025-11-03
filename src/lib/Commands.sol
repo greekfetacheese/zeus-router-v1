@@ -7,6 +7,7 @@ library Commands {
     bytes1 constant V3_SWAP = 0x02;
     bytes1 constant V4_SWAP = 0x03;
     bytes1 constant WRAP_ETH = 0x04;
-    bytes1 constant UNWRAP_WETH = 0x05;
-    bytes1 constant SWEEP = 0x06;
+    bytes1 constant WRAP_ALL_ETH = 0x05;
+    bytes1 constant UNWRAP_WETH = 0x06;
+    bytes1 constant SWEEP = 0x07;
 }

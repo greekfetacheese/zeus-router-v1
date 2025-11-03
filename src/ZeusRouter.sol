@@ -125,6 +125,10 @@ contract ZeusRouter {
                 wrapETH(input);
             }
 
+            if (command == Commands.WRAP_ALL_ETH) {
+                wrapAllETH(input);
+            }
+
             if (command == Commands.UNWRAP_WETH) {
                 unwrapWETH(input);
             }
@@ -135,7 +139,7 @@ contract ZeusRouter {
         }
     }
 
-    /// @notice Wraps contract's ETH into WETH
+    /// @notice Wraps a specified amount of contract's ETH into WETH and sends it to the recipient
     function wrapETH(bytes memory input) internal {
         Inputs.WrapETH memory params = abi.decode(input, (Inputs.WrapETH));
         IWETH(WETH).deposit{value: params.amount}();
@@ -145,16 +149,29 @@ contract ZeusRouter {
         }
     }
 
-    /// @notice Unwraps all WETH from the contract to the recipient
-    function unwrapWETH(bytes memory input) internal {
-        Inputs.UnwrapWETH memory params = abi.decode(input, (Inputs.UnwrapWETH));
-        uint256 balance = SafeTransferLib.balanceOf(WETH, address(this));
-        require(balance >= params.amountMin, "unwrapWETH SlippageCheck: Insufficient WETH");
+    /// @notice Wraps all contract's ETH into WETH and sends it to the recipient
+    function wrapAllETH(bytes memory input) internal {
+        Inputs.WrapAllETH memory params = abi.decode(input, (Inputs.WrapAllETH));
+        IWETH(WETH).deposit{value: address(this).balance}();
 
-        IWETH(WETH).withdraw(balance);
+        uint256 wethBalance = SafeTransferLib.balanceOf(WETH, address(this));
 
         if (params.recipient != address(this)) {
-            SafeTransferLib.forceSafeTransferETH(params.recipient, balance);
+            SafeTransferLib.safeTransfer(WETH, params.recipient, wethBalance);
+        }
+    }
+
+    /// @notice Unwraps all WETH from the contract and sends all the remaining ETH to the recipient
+    function unwrapWETH(bytes memory input) internal {
+        Inputs.UnwrapWETH memory params = abi.decode(input, (Inputs.UnwrapWETH));
+        uint256 wethBalance = SafeTransferLib.balanceOf(WETH, address(this));
+
+        IWETH(WETH).withdraw(wethBalance);
+
+        uint256 ethBalance = address(this).balance;
+
+        if (params.recipient != address(this)) {
+            SafeTransferLib.forceSafeTransferETH(params.recipient, ethBalance);
         }
     }
 
@@ -164,20 +181,15 @@ contract ZeusRouter {
         uint256 balance;
         if (params.currency == ETH) {
             balance = address(this).balance;
-            require(balance >= params.amountMin, "SweepSlippageCheck: Insufficient ETH");
             SafeTransferLib.forceSafeTransferETH(params.recipient, balance);
         } else {
             balance = SafeTransferLib.balanceOf(params.currency, address(this));
-            require(balance >= params.amountMin, "SweepSlippageCheck: Insufficient token balance");
             SafeTransferLib.safeTransfer(params.currency, params.recipient, balance);
         }
     }
 
     function _swapV2V3(bytes memory input) internal {
         Inputs.V2V3SwapParams memory params = abi.decode(input, (Inputs.V2V3SwapParams));
-
-        uint256 balance = SafeTransferLib.balanceOf(params.tokenIn, msg.sender);
-        require(balance >= params.amountIn, "Swap Failed: Insufficient input");
 
         if (params.poolVariant == 0) {
             if (params.permit2) {
